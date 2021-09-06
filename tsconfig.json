@@ -18,7 +18,7 @@
     /* Additional Options */
     "strict": true,
     "skipLibCheck": true,
-    "types": ["snowpack-env"],
+    "types": ["snowpack-env","web-bluetooth"],
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
