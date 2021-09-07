@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+import { parseHeartSensorData, SERVICE_NAME, CHARACTERISTIC } from './utils/heart';
+
 interface AppProps {}
 
 function App({}: AppProps) {
@@ -8,32 +10,30 @@ function App({}: AppProps) {
   return (
     <div className="App">
     <header className="App-header">
+      <p>Connected to: {device?.name}</p>
       <button disabled={device !== null} onClick={async () => {
         try {
 
-          function handleBatteryLevelChanged(event: Event) {
+          function handleCharacteristicValueChanged(event: unknown) {
             // @ts-expect-error
-            const batteryLevel = event?.target?.value?.getUint8(0);
-            console.log('Battery percentage is ' + batteryLevel);
+            const value = event.target.value as DataView;
+            console.log('Received ', value.buffer);
+
+            const result = parseHeartSensorData(value);
+            console.log('result', result);
           }
 
           const blDevice = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: ['battery_service'] // Required to access service later.
+            filters: [{services: ['heart_rate']}],
           });
 
           const server = await blDevice?.gatt?.connect();
-          const batteryService = await server?.getPrimaryService('battery_service');
-          const batteryCharacteristic = await batteryService?.getCharacteristic('battery_level');
-          const batteryValue = await batteryCharacteristic?.readValue();
+          const service = await server?.getPrimaryService(SERVICE_NAME);
+          const characteristic = await service?.getCharacteristic(CHARACTERISTIC);
 
-          batteryCharacteristic?.addEventListener('characteristicvaluechanged', handleBatteryLevelChanged);
+          characteristic?.startNotifications();
 
-          console.log('device', blDevice);
-          console.log('server', server);
-          console.log('batteryService', batteryService);
-          console.log('batteryCharacteristic', batteryCharacteristic);
-          console.log('batteryValue', batteryValue);
+          characteristic?.addEventListener('characteristicvaluechanged', handleCharacteristicValueChanged);
 
           setDevice(blDevice);
         } catch(err) {
