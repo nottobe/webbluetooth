@@ -2,52 +2,59 @@ import React, { useState } from 'react';
 
 import { parseHeartSensorData, SERVICE_NAME, CHARACTERISTIC } from './utils/heart';
 
+const SERVICES = ['heart_rate'];
+
 interface AppProps {}
 
 function App({}: AppProps) {
   const [device, setDevice] = useState<BluetoothDevice | null>(null);
+  const [contact, setContact] = useState(false);
+
+  function handleCharacteristicValueChanged(event: unknown) {
+    // @ts-expect-error
+    const value = event.target.value as DataView;
+    console.log('Received ', value.buffer);
+
+    const result = parseHeartSensorData(value);
+    setContact(!!result.contactDetected);
+
+    console.log('result', result);
+  }
+
+  async function handleConnect() {
+    try {
+      const blDevice = await navigator.bluetooth.requestDevice({ filters: [{services: SERVICES}] });
+
+      const server = await blDevice?.gatt?.connect();
+      const service = await server?.getPrimaryService(SERVICE_NAME);
+      const characteristic = await service?.getCharacteristic(CHARACTERISTIC);
+
+      characteristic?.startNotifications();
+
+      characteristic?.addEventListener('characteristicvaluechanged', handleCharacteristicValueChanged);
+
+      setDevice(blDevice);
+    } catch(err) {
+      console.log('error on requestDevice', err);
+    }
+  }
+
+  function handleDisconnect() {
+    if(!device) {
+      return
+    }
+
+    device?.gatt?.disconnect();
+    setDevice(null);
+  }
 
   return (
     <div className="App">
     <header className="App-header">
-      <p>Connected to: {device?.name}</p>
-      <button disabled={device !== null} onClick={async () => {
-        try {
+      <p>Connected to: {device?.name} <span style={{color: contact ? 'green' : 'red'}}>{'\u2b24'}</span></p>
 
-          function handleCharacteristicValueChanged(event: unknown) {
-            // @ts-expect-error
-            const value = event.target.value as DataView;
-            console.log('Received ', value.buffer);
-
-            const result = parseHeartSensorData(value);
-            console.log('result', result);
-          }
-
-          const blDevice = await navigator.bluetooth.requestDevice({
-            filters: [{services: ['heart_rate']}],
-          });
-
-          const server = await blDevice?.gatt?.connect();
-          const service = await server?.getPrimaryService(SERVICE_NAME);
-          const characteristic = await service?.getCharacteristic(CHARACTERISTIC);
-
-          characteristic?.startNotifications();
-
-          characteristic?.addEventListener('characteristicvaluechanged', handleCharacteristicValueChanged);
-
-          setDevice(blDevice);
-        } catch(err) {
-          console.log('error on requestDevice', err);
-        }
-      }}>Request Bluetooth device</button>
-      <button disabled={device === null} onClick={() => {
-        if(!device) {
-          return
-        }
-
-        device?.gatt?.disconnect();
-        setDevice(null);
-      }}>Disconnect from Bluetooth device</button>
+      <button disabled={device !== null} onClick={handleConnect}>Request Bluetooth device</button>
+      <button disabled={device === null} onClick={handleDisconnect}>Disconnect from Bluetooth device</button>
     </header>
     </div>
   )
